@@ -1,0 +1,24 @@
+cirread -v ./designs/SoCV/vending/vending-mini.v
+breset 2000 100003 200003
+
+bsetorder -dfs
+bconstruct -all
+
+set system vrf
+
+pinit init
+ptrans tri tr
+
+// Shallow reachability first
+pimage -n 10 reach10
+pcheckp -o 0
+pcheckp -o 1
+pcheckp -o 2
+
+// Deeper reachability
+pimage -n 30 reach40
+pcheckp -o 0
+pcheckp -o 1
+pcheckp -o 2
+
+q -f

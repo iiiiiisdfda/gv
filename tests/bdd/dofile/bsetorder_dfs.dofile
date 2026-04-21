@@ -1,0 +1,4 @@
+cirread -v ./designs/SoCV/basic/a.v
+breset 50000 60013 70001
+bsetorder -dfs
+q -f

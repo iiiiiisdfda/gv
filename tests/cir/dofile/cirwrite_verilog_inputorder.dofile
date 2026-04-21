@@ -1,0 +1,5 @@
+cirread -v ./designs/SoCV/basic/a.v
+cirwrite -verilog -output ./tests/cir/tmp_basic_a_rdfs.v -inputorder rdfs
+cirread -v ./tests/cir/tmp_basic_a_rdfs.v -replace
+cirprint -pi
+q -f

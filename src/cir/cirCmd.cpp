@@ -9,9 +9,12 @@
 #include "cirCmd.h"
 
 #include <cassert>
+#include <cctype>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <unordered_map>
 
 #include "cirECO.h"
 #include "cirGate.h"
@@ -56,6 +59,92 @@ enum CirCmdState {
 };
 
 static CirCmdState curCmd = CIRINIT;
+
+static gv::cir::BddOrderMode parseInputOrderMode(const string& token, bool& ok) {
+    ok = true;
+    if (myStrNCmp("-File", token, 2) == 0 || myStrNCmp("File", token, 2) == 0) return gv::cir::BDD_ORDER_FILE;
+    if (myStrNCmp("-RFile", token, 3) == 0 || myStrNCmp("RFile", token, 3) == 0) return gv::cir::BDD_ORDER_RFILE;
+    if (myStrNCmp("-DFS", token, 2) == 0 || myStrNCmp("DFS", token, 2) == 0) return gv::cir::BDD_ORDER_DFS;
+    if (myStrNCmp("-RDFS", token, 3) == 0 || myStrNCmp("RDFS", token, 3) == 0) return gv::cir::BDD_ORDER_RDFS;
+    ok = false;
+    return gv::cir::BDD_ORDER_FILE;
+}
+
+static string trimSpaceLocal(const string& s) {
+    size_t b = 0;
+    while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
+    size_t e = s.size();
+    while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) --e;
+    return s.substr(b, e - b);
+}
+
+static bool isInputDeclLine(const string& line) {
+    const string t = trimSpaceLocal(line);
+    return (t.size() >= 6 && t.substr(0, 6) == "input ");
+}
+
+static string extractInputName(const string& line) {
+    string s = trimSpaceLocal(line);
+    if (s.empty()) return "";
+    if (s.back() == ';') s.pop_back();
+    // Take the last token as the signal name.
+    stringstream ss(s);
+    string token, last;
+    while (ss >> token) last = token;
+    if (last.empty() || last == "input") return "";
+    if (!last.empty() && last.back() == ',') last.pop_back();
+    return last;
+}
+
+static bool reorderVerilogInputDecls(const string& fileName, const vector<string>& piOrder) {
+    ifstream in(fileName.c_str());
+    if (!in) return false;
+    vector<string> lines;
+    string line;
+    while (getline(in, line)) lines.push_back(line);
+    in.close();
+
+    unordered_map<string, string> inputDecl;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        if (!isInputDeclLine(lines[i])) continue;
+        string name = extractInputName(lines[i]);
+        if (!name.empty() && !inputDecl.count(name)) inputDecl[name] = lines[i];
+    }
+    if (inputDecl.empty()) return true;
+
+    vector<string> orderedDecls;
+    orderedDecls.reserve(inputDecl.size());
+    unordered_map<string, bool> used;
+    for (size_t i = 0; i < piOrder.size(); ++i) {
+        auto it = inputDecl.find(piOrder[i]);
+        if (it != inputDecl.end()) {
+            orderedDecls.push_back(it->second);
+            used[piOrder[i]] = true;
+        }
+    }
+    for (auto it = inputDecl.begin(); it != inputDecl.end(); ++it) {
+        if (!used[it->first]) orderedDecls.push_back(it->second);
+    }
+
+    vector<string> out;
+    out.reserve(lines.size() + 4);
+    bool inserted = false;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        if (isInputDeclLine(lines[i])) {
+            if (!inserted) {
+                for (size_t k = 0; k < orderedDecls.size(); ++k) out.push_back(orderedDecls[k]);
+                inserted = true;
+            }
+            continue;
+        }
+        out.push_back(lines[i]);
+    }
+
+    ofstream of(fileName.c_str(), ios::out);
+    if (!of) return false;
+    for (size_t i = 0; i < out.size(); ++i) of << out[i] << "\n";
+    return true;
+}
 
 //----------------------------------------------------------------------
 //    CIRRead <-Verilog | -Aiger> <(string fileName)> [-Replace]
@@ -252,7 +341,8 @@ void CirGateCmd::help() const {
 }
 
 //----------------------------------------------------------------------
-//    CIRWrite <-Aag [(int gateId)] | -Aig | -Blif> <-Output (string fileName)>
+//    CIRWrite <-Aag [(int gateId)] | -Aig | -Blif | -Verilog>
+//             <-Output (string fileName)> [-InputOrder File|RFile|DFS|RDFS]
 //----------------------------------------------------------------------
 GVCmdExecStatus
 CirWriteCmd::exec(const string& option) {
@@ -270,6 +360,8 @@ CirWriteCmd::exec(const string& option) {
     }
     FileType fileType;
     bool hasFile = false;
+    bool hasInputOrder = false;
+    gv::cir::BddOrderMode inputOrderMode = gv::cir::BDD_ORDER_FILE;
     int gateId;
     gv::cir::CirGate* thisGate = NULL;
     string outFileName;
@@ -281,6 +373,8 @@ CirWriteCmd::exec(const string& option) {
             fileType = AAG;
         } else if (myStrNCmp("-Blif", options[i], 2) == 0) {
             fileType = BLIF;
+        } else if (myStrNCmp("-Verilog", options[i], 2) == 0) {
+            fileType = VERILOG;
         } else if (myStrNCmp("-Output", options[i], 2) == 0) {
             if (hasFile)
                 return GVCmdExec::errorOption(GV_CMD_OPT_EXTRA, options[i]);
@@ -292,6 +386,13 @@ CirWriteCmd::exec(const string& option) {
                 return GVCmdExec::errorOption(GV_CMD_OPT_FOPEN_FAIL, options[1]);
             hasFile = true;
             cirMgr->setFileName(outFileName);
+        } else if (myStrNCmp("-InputOrder", options[i], 3) == 0) {
+            if (hasInputOrder) return GVCmdExec::errorOption(GV_CMD_OPT_EXTRA, options[i]);
+            if (++i == n) return GVCmdExec::errorOption(GV_CMD_OPT_MISSING, options[i - 1]);
+            bool ok = false;
+            inputOrderMode = parseInputOrderMode(options[i], ok);
+            if (!ok) return GVCmdExec::errorOption(GV_CMD_OPT_ILLEGAL, options[i]);
+            hasInputOrder = true;
         } else if (myStr2Int(options[i], gateId) && gateId >= 0) {
             if (fileType != AAG)
                 return GVCmdExec::errorOption(GV_CMD_OPT_EXTRA, options[i]);
@@ -318,6 +419,17 @@ CirWriteCmd::exec(const string& option) {
     } else if (fileType == BLIF) {
         // Optional: support BLIF flow via Yosys
         cirMgr->getYosysMgr()->writeBlif(outFileName);
+    } else if (fileType == VERILOG) {
+        cirMgr->getYosysMgr()->writeVerilog(outFileName);
+        vector<gv::cir::CirPiGate*> order = cirMgr->collectPiOrder(inputOrderMode);
+        vector<string> piNames;
+        piNames.reserve(order.size());
+        for (size_t i = 0; i < order.size(); ++i) {
+            char* n = order[i]->getName();
+            if (n && *n) piNames.push_back(string(n));
+        }
+        if (!reorderVerilogInputDecls(outFileName, piNames))
+            return GVCmdExec::errorOption(GV_CMD_OPT_FOPEN_FAIL, outFileName);
     } else if (fileType == AAG) {
         // ASCII AAG output using CirMgr's native writer
         if (!thisGate) {
@@ -332,12 +444,13 @@ CirWriteCmd::exec(const string& option) {
 }
 
 void CirWriteCmd::usage(const bool& verbose) const {
-    cout << "Usage: CIRWrite <-Aag [(int gateId)] | -Aig | -Blif> <-Output (string fileName)>" << endl;
+    cout << "Usage: CIRWrite <-Aag [(int gateId)] | -Aig | -Blif | -Verilog>"
+         << " <-Output (string fileName)> [-InputOrder File|RFile|DFS|RDFS]" << endl;
 }
 
 void CirWriteCmd::help() const {
     cout << setw(20) << left << "CIRWrite: "
-         << "Write the netlist to an AIG/AAG/BLIF file\n";
+         << "Write the netlist to an AIG/AAG/BLIF/Verilog file\n";
 }
 
 // void

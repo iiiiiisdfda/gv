@@ -228,6 +228,16 @@ void YosysMgr::writeAiger(const string& fileName) {
     Yosys::run_pass(command);
 }
 
+void YosysMgr::writeVerilog(const string& fileName) {
+    const std::string designName =
+        _fileVec.empty() ? fileTypeStr[VERILOG] : _fileVec.front();
+    loadDesign(designName);
+    string command = "hierarchy -auto-top; ";
+    command += "proc; opt; ";
+    command += "write_verilog " + fileName;
+    Yosys::run_pass(command);
+}
+
 /**
  * @brief Displays the schematic of the top module in the Yosys design.
  *

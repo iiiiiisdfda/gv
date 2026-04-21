@@ -153,7 +153,7 @@ always @ (posedge clk) begin
          default       : begin
             if (!changeReady) begin
                if (inputValue < serviceValue) begin
-                  if (forceService) begin
+                  if (forceService && itemNumberOut != 3'd0) begin
                      itemNumberOut <= itemNumberOut - 3'd1;
                      serviceValue  <= (itemTypeOut == `ITEM_A) ? (serviceValue - `COST_ITEM_A) : 
                                       (itemTypeOut == `ITEM_B) ? (serviceValue - `COST_ITEM_B) : 
@@ -230,7 +230,7 @@ always @ (posedge clk) begin
                            countC            <= (countC + coinOutC);
                            countD            <= (countD + coinOutD);
                            serviceCoinType   <= `COIN_A;
-                           if (forceService) begin
+                           if (forceService && itemNumberOut != 3'd0) begin
                               itemNumberOut     <= itemNumberOut - 3'd1;
                               serviceValue      <= (`VALUE_COIN_A * {7'd0, coinOutA}) + 
                                                    (`VALUE_COIN_B * {7'd0, coinOutB}) + 

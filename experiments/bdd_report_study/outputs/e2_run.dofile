@@ -1,0 +1,4 @@
+cirread -v ./designs/SoCV/basic/a.v
+cirwrite -verilog -output ./experiments/bdd_report_study/outputs/e2_inputorder_file.v -inputorder file
+cirwrite -verilog -output ./experiments/bdd_report_study/outputs/e2_inputorder_rdfs.v -inputorder rdfs
+q -f

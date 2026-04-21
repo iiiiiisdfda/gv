@@ -82,6 +82,7 @@ public:
     void readAiger(const string&);
     void writeBlif(const string&);
     void writeAiger(const string&);
+    void writeVerilog(const string&);
 
     void showSchematic();
     void extractFSM();

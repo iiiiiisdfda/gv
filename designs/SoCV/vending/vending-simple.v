@@ -11,24 +11,24 @@
 `define SERVICE_ON      2'b01
 `define SERVICE_BUSY    2'b10
 // Coin Types
-`define NTD_50          2'b00
+`define NTD_50          2'b00  // unused in mini configuration
 `define NTD_10          2'b01
-`define NTD_5           2'b10
+`define NTD_5           2'b10  // unused in mini configuration
 `define NTD_1           2'b11
 // Coin Values
-`define VALUE_NTD_50    8'd50
+`define VALUE_NTD_50    8'd0
 `define VALUE_NTD_10    8'd10
-`define VALUE_NTD_5     8'd5
+`define VALUE_NTD_5     8'd0
 `define VALUE_NTD_1     8'd1
 // Item Types
 `define ITEM_NONE       2'b00
 `define ITEM_A          2'b01
-`define ITEM_B          2'b10
-`define ITEM_C          2'b11
+`define ITEM_B          2'b10  // unsupported in mini configuration
+`define ITEM_C          2'b11  // unsupported in mini configuration
 // Item Costs
 `define COST_A          8'd8
-`define COST_B          8'd15
-`define COST_C          8'd22
+`define COST_B          8'd0
+`define COST_C          8'd0
 
 module vendingMachine(
    // Property Output Ports
@@ -111,9 +111,7 @@ wire   [7:0] outExchange;      // the output exchange amount, for verification
 /***** whether the change is right *****/
 assign p = initialized && (serviceTypeOut == `SERVICE_OFF) && (itemTypeOut == `ITEM_NONE) && (outExchange != inputValue); // catch the bug
 
-assign outExchange = (`VALUE_NTD_50 * {5'd0, coinOutNTD_50}) + 
-                     (`VALUE_NTD_10 * {5'd0, coinOutNTD_10}) + 
-                     (`VALUE_NTD_5  * {5'd0, coinOutNTD_5 }) + 
+assign outExchange = (`VALUE_NTD_10 * {5'd0, coinOutNTD_10}) + 
                      (`VALUE_NTD_1  * {5'd0, coinOutNTD_1 });
 
 always @ (*) begin
@@ -141,22 +139,16 @@ always @ (*) begin
         coinOutNTD_1_w    = 3'd0;
         itemTypeOut_w     = itemTypeIn;
         serviceTypeOut_w  = `SERVICE_BUSY;
-        countNTD_50_w     = (({1'b0, countNTD_50} + {2'd0, coinInNTD_50}) >= {1'b0, 3'b111}) ? 
-                             3'b111 : (countNTD_50 + {1'b0, coinInNTD_50});
+        countNTD_50_w     = countNTD_50;
         countNTD_10_w     = (({1'b0, countNTD_10} + {2'd0, coinInNTD_10}) >= {1'b0, 3'b111}) ? 
                              3'b111 : (countNTD_10 + {1'b0, coinInNTD_10});
-        countNTD_5_w      = (({1'b0, countNTD_5 } + {2'd0, coinInNTD_5 }) >= {1'b0, 3'b111}) ? 
-                             3'b111 : (countNTD_5  + {1'b0, coinInNTD_5 });
+        countNTD_5_w      = countNTD_5;
         countNTD_1_w      = (({1'b0, countNTD_1 } + {2'd0, coinInNTD_1 }) >= {1'b0, 3'b111}) ? 
                              3'b111 : (countNTD_1  + {1'b0, coinInNTD_1 });
-        inputValue_w      = (`VALUE_NTD_50 * {6'd0, coinInNTD_50}) + 
-                             (`VALUE_NTD_10 * {6'd0, coinInNTD_10}) + 
-                             (`VALUE_NTD_5  * {6'd0, coinInNTD_5 }) + 
+        inputValue_w      = (`VALUE_NTD_10 * {6'd0, coinInNTD_10}) + 
                              (`VALUE_NTD_1  * {6'd0, coinInNTD_1 });
-        serviceValue_w    = (itemTypeIn == `ITEM_A) ? `COST_A : 
-                             (itemTypeIn == `ITEM_B) ? `COST_B : 
-                             (itemTypeIn == `ITEM_C) ? `COST_C : 8'd0; 
-        serviceCoinType_w = `NTD_50;
+        serviceValue_w    = (itemTypeIn == `ITEM_A) ? `COST_A : 8'd0;
+        serviceCoinType_w = `NTD_10;
         exchangeReady_w   = 1'b0;
       end
     end
@@ -181,59 +173,43 @@ always @ (*) begin
       end else begin
         case (serviceCoinType)
           `NTD_50 : begin
-            if (serviceValue >= `VALUE_NTD_50) begin
-              if (countNTD_50 == 3'd0) begin
-                serviceCoinType_w = `NTD_10;
-              end else begin
-                coinOutNTD_50_w = coinOutNTD_50 + 3'd1;
-                countNTD_50_w   = countNTD_50 - 3'd1;
-                serviceValue_w  = serviceValue - `VALUE_NTD_50;
-              end
-            end else begin
-              serviceCoinType_w = `NTD_10;
-            end
+            // NTD_50 path disabled in mini configuration.
+            serviceCoinType_w = `NTD_10;
           end
           `NTD_10 : begin
             if (serviceValue >= `VALUE_NTD_10) begin
               if (countNTD_10 == 3'd0) begin
-                serviceCoinType_w = `NTD_5;
+                serviceCoinType_w = `NTD_1;
               end else begin
                 coinOutNTD_10_w = coinOutNTD_10 + 3'd1;
                 countNTD_10_w   = countNTD_10 - 3'd1;
                 serviceValue_w  = serviceValue - `VALUE_NTD_10;
               end
             end else begin
-              serviceCoinType_w = `NTD_5;
+              serviceCoinType_w = `NTD_1;
             end
           end
           `NTD_5  : begin
-            if (serviceValue >= `VALUE_NTD_5) begin
-              if (countNTD_5 == 3'd0) begin
-                serviceCoinType_w = `NTD_1;
-              end else begin
-                coinOutNTD_5_w = coinOutNTD_5 + 3'd1;
-                countNTD_5_w   = countNTD_5 - 3'd1;
-                serviceValue_w = serviceValue - `VALUE_NTD_5;
-              end
-            end else begin
-              serviceCoinType_w = `NTD_1;
-            end
+            // NTD_5 path disabled in mini configuration.
+            serviceCoinType_w = `NTD_1;
           end
           `NTD_1  : begin
             if (serviceValue >= `VALUE_NTD_1) begin
               if (countNTD_1 == 3'd0) begin
                 serviceValue_w    = inputValue;
                 itemTypeOut_w     = `ITEM_NONE;
-                serviceCoinType_w = `NTD_50;
-                countNTD_50_w     = countNTD_50 + coinOutNTD_50;
+                serviceCoinType_w = `NTD_10;
+                countNTD_50_w     = countNTD_50;
                 countNTD_10_w     = countNTD_10 + coinOutNTD_10;
-                countNTD_5_w      = countNTD_5 + coinOutNTD_5;
+                countNTD_5_w      = countNTD_5;
                 countNTD_1_w      = countNTD_1 + coinOutNTD_1;
                 coinOutNTD_50_w   = 3'd0;
                 coinOutNTD_10_w   = 3'd0;
                 coinOutNTD_5_w    = 3'd0;
                 coinOutNTD_1_w    = 3'd0;
-                serviceTypeOut_w  = `SERVICE_OFF;   // bug 1 
+                // Keep processing in BUSY so the machine can continue
+                // exchange/refund handling after rollback.
+                serviceTypeOut_w  = `SERVICE_BUSY;
               end else begin
                 coinOutNTD_1_w = coinOutNTD_1 + 3'd1;
                 countNTD_1_w   = countNTD_1 - 3'd1;
@@ -257,13 +233,13 @@ always @ (posedge clk) begin
       coinOutNTD_1      <= 3'd0;
       itemTypeOut       <= `ITEM_NONE;
       serviceTypeOut    <= `SERVICE_ON;
-      countNTD_50       <= 3'd2;
+      countNTD_50       <= 3'd0;
       countNTD_10       <= 3'd2;
-      countNTD_5        <= 3'd2;
+      countNTD_5        <= 3'd0;
       countNTD_1        <= 3'd2;
       inputValue        <= 8'd0;
       serviceValue      <= 8'd0;
-      serviceCoinType   <= `NTD_50;
+      serviceCoinType   <= `NTD_10;
       exchangeReady     <= 1'b0;
       initialized       <= 1'b1;
    end

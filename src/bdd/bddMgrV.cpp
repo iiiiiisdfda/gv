@@ -89,6 +89,11 @@ void BddMgrV::reset() {
         delete (*bi).second;
     _uniqueTable.reset();
     _computedTable.reset();
+    _isFixed = false;
+    _initState = size_t(0);
+    _tr = size_t(0);
+    _tri = size_t(0);
+    _reachStates.clear();
 }
 
 // [Note] Remeber to check "isNegEdge" when return BddNodeV!!!!!

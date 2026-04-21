@@ -12,13 +12,51 @@
 #include "cirMgr.h"
 #include "gvMsg.h"
 #include "util.h"
+#include <unordered_set>
 
 extern BddMgrV* bddMgrV;  // MODIFICATION FOR SoCV BDD
 
 namespace gv {
 namespace cir {
 
-const bool CirMgr::setBddOrder(const bool& file) {
+vector<CirPiGate*> CirMgr::collectPiOrder(const BddOrderMode& mode) const {
+    vector<CirPiGate*> order;
+    order.reserve(getNumPIs());
+    if (mode == BDD_ORDER_FILE || mode == BDD_ORDER_RFILE) {
+        for (unsigned i = 0, n = getNumPIs(); i < n; ++i) {
+            unsigned idx = (mode == BDD_ORDER_FILE) ? i : (n - i - 1);
+            order.push_back(getPi(idx));
+        }
+        return order;
+    }
+
+    std::unordered_set<unsigned> seen;
+    if (mode == BDD_ORDER_DFS) {
+        for (size_t i = 0, n = _dfsList.size(); i < n; ++i) {
+            CirGate* g = _dfsList[i];
+            if (g && g->getType() == PI_GATE && !seen.count(g->getGid())) {
+                seen.insert(g->getGid());
+                order.push_back(static_cast<CirPiGate*>(g));
+            }
+        }
+    } else {  // BDD_ORDER_RDFS
+        for (size_t i = _dfsList.size(); i > 0; --i) {
+            CirGate* g = _dfsList[i - 1];
+            if (g && g->getType() == PI_GATE && !seen.count(g->getGid())) {
+                seen.insert(g->getGid());
+                order.push_back(static_cast<CirPiGate*>(g));
+            }
+        }
+    }
+
+    // Keep behavior robust in edge cases: append missing PIs in file order.
+    for (unsigned i = 0, n = getNumPIs(); i < n; ++i) {
+        if (!seen.count(getPi(i)->getGid())) order.push_back(getPi(i));
+    }
+    return order;
+}
+
+const bool CirMgr::setBddOrder(const BddOrderMode& mode) {
     unsigned supportSize = getNumPIs() + 2 * getNumLATCHs();
     unsigned bddspsize   = bddMgrV->getNumSupports();
     if (supportSize >= bddMgrV->getNumSupports()) {
@@ -28,21 +66,23 @@ const bool CirMgr::setBddOrder(const bool& file) {
     // build support
     unsigned supportId = 1;
     // build PI (primary input)
-    for (unsigned i = 0, n = getNumPIs(); i < n; ++i) {
-        CirPiGate* gate = (file) ? getPi(i) : getPi(n - i - 1);
+    vector<CirPiGate*> piOrder = collectPiOrder(mode);
+    for (unsigned i = 0, n = piOrder.size(); i < n; ++i) {
+        CirPiGate* gate = piOrder[i];
         bddMgrV->addBddNodeV(gate->getGid(), bddMgrV->getSupport(supportId)());
         ++supportId;
     }
+    const bool reverseLatch = (mode == BDD_ORDER_RFILE || mode == BDD_ORDER_RDFS);
     // build FF_CS (X: current state)
     for (unsigned i = 0, n = getNumLATCHs(); i < n; ++i) {
-        CirRoGate* gate = (file) ? getRo(i) : getRo(n - i - 1);
+        CirRoGate* gate = reverseLatch ? getRo(n - i - 1) : getRo(i);
         bddMgrV->addBddNodeV(gate->getGid(), bddMgrV->getSupport(supportId)());
         ++supportId;
     }
     // build FF_NS (Y: next state)
     // here we only create "CS_name + _ns" for y_i
     for (unsigned i = 0, n = getNumLATCHs(); i < n; ++i) {
-        CirRiGate* gate = (file) ? getRi(i) : getRi(n - i - 1);
+        CirRiGate* gate = reverseLatch ? getRi(n - i - 1) : getRi(i);
         bddMgrV->addBddNodeV(gate->getName(), bddMgrV->getSupport(supportId)());
         ++supportId;
     }

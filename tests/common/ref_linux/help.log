@@ -9,11 +9,15 @@ Quit:               Quit the execution.
 ========== Verify Commands : ==========
 PDR:                Model checking using property directed reachability in abc.
 
+========== Simulate Commands : ==========
+RAndom Sim:         Conduct random simulation and print the results.
+SEt SAfe:           Set safe property for random sim.
+
 ========== Network Commands : ==========
 CIRGate:            Report a gate
 CIRPrint:           Print circuit
 CIRRead:            Read in a circuit and construct the netlist
-CIRWrite:           Write the netlist to an AIG/AAG/BLIF file
+CIRWrite:           Write the netlist to an AIG/AAG/BLIF/Verilog file
 
 ========== Abc Commands : ==========
 ABCCMD:             Directly call ABC's command.
@@ -39,11 +43,17 @@ BNOR:               BDD Nor
 BOR:                BDD Or
 BREPort:            BDD report node
 BRESET:             BDD reset
-BSETOrder:          Set BDD variable Order From Circuit.
+BSETOrder:          Set BDD variable order from file or DFS PI order.
 BSETVar:            BDD set a variable name for a support
 BSIMulate:          BDD simulation
 BXNOR:              BDD Xnor
 BXOR:               BDD Xor
+
+========== Prove Commands : ==========
+PCHECKProperty:     check the monitor by BDDs
+PIMAGe:             build the next state images in BDDs
+PINITialstate:      Set initial state BDD
+PTRansrelation:     build the transition relationship in BDDs
 
 ========== SATSolving Commands : ==========
 SATSolve DIMACS:    Command for satsolving DIMACS format file.
