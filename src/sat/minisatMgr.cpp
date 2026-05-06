@@ -9,6 +9,7 @@
 #include "minisatMgr.h"
 
 #include <cmath>
+#include <cstdint>
 #include <fstream>
 
 #include "cirGate.h"
@@ -263,7 +264,9 @@ const bool MinisatMgr::existVerifyData(const CirGate* gate, const uint32_t& dept
     return getVerifyData(gate, depth);
 }
 
-void MinisatMgr::solve_dimacs_cnf(const string& filename) {
+void MinisatMgr::solve_dimacs_cnf(const string& filename, bool print_model,
+                                  int64_t conflict_limit, bool static_decision_order,
+                                  int witness_lit) {
     _solver_dimacs = new SolverV();
 
     fstream file;
@@ -305,16 +308,59 @@ void MinisatMgr::solve_dimacs_cnf(const string& filename) {
         _solver_dimacs->addClause(lits);
     }
     _solver_dimacs->verbosity = 1;
-    bool result = _solver_dimacs->solve();
-    if (result) {
-        cout << "SAT" << endl;
-        for (int i = 0; i < nVars; ++i) {
-            if (_solver_dimacs->model[i] == gv_l_True)
-                cout << i + 1 << " ";
-            else
-                cout << -(i + 1) << " ";
-        }
-    } else {
-        cout << "UNSAT";
+    if (static_decision_order) {
+        // Disable activity bump decay and random picks to approximate static variable order.
+        _solver_dimacs->default_params.var_decay = -1.0;
+        _solver_dimacs->default_params.random_var_freq = 0.0;
     }
+
+    gvlbool sat_result;
+    if (conflict_limit >= 0) {
+        vec<Lit> assumps;
+        sat_result = _solver_dimacs->solveLimited(assumps, conflict_limit);
+    } else {
+        bool ok = _solver_dimacs->solve();
+        sat_result = ok ? gv_l_True : gv_l_False;
+    }
+
+    if (sat_result == gv_l_True) {
+        cout << "SAT" << endl;
+        if (witness_lit != 0) {
+            int var_idx = abs(witness_lit);
+            if (var_idx < 1 || var_idx > nVars) {
+                cout << "GV_DIMACS_WITNESS literal=" << witness_lit
+                     << " error=out_of_range nVars=" << nVars << endl;
+            } else {
+                bool var_val = (_solver_dimacs->model[var_idx - 1] == gv_l_True);
+                bool lit_val = (witness_lit > 0) ? var_val : !var_val;
+                cout << "GV_DIMACS_WITNESS literal=" << witness_lit
+                     << " variable=" << var_idx
+                     << " variable_value=" << (var_val ? 1 : 0)
+                     << " literal_value=" << (lit_val ? 1 : 0) << endl;
+            }
+        }
+        if (print_model) {
+            for (int i = 0; i < nVars; ++i) {
+                if (_solver_dimacs->model[i] == gv_l_True)
+                    cout << i + 1 << " ";
+                else
+                    cout << -(i + 1) << " ";
+            }
+            cout << endl;
+        }
+    } else if (sat_result == gv_l_False) {
+        cout << "UNSAT" << endl;
+    } else {
+        cout << "UNKNOWN" << endl;
+    }
+
+    cout << "GV_DIMACS_STATS conflicts=" << _solver_dimacs->stats.conflicts
+         << " propagations=" << _solver_dimacs->stats.propagations
+         << " decisions=" << _solver_dimacs->stats.decisions
+         << " starts=" << _solver_dimacs->stats.starts;
+    if (conflict_limit >= 0)
+        cout << " conflict_limit=" << conflict_limit
+             << " budget_exhausted=" << (sat_result == gv_l_Undef ? 1 : 0);
+    if (static_decision_order) cout << " decision_order=STATIC";
+    cout << endl;
 }

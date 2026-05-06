@@ -21,6 +21,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/Sort.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <climits>
 
 #define CC_MINIMIZATION
 
@@ -957,7 +959,8 @@ SolverV::solveLimited(const vec<Lit>& assumps, int64_t nConflicts) {
     }
 
     while (status == gv_l_Undef) {
-        if (nof_conflicts > nConflicts) return gv_l_Undef;
+        // Total conflict budget (nConflicts < 0 means unlimited).
+        if (nConflicts >= 0 && stats.conflicts >= nConflicts) return gv_l_Undef;
         if (verbosity >= 1) {
             reportf("| %9d | %7d %8d | %7d %7d %8d %7.1f | %6.3f %% |\n", (int)stats.conflicts,
                     nClauses(), (int)stats.clauses_literals, (int)nof_learnts, nLearnts(),
@@ -965,7 +968,18 @@ SolverV::solveLimited(const vec<Lit>& assumps, int64_t nConflicts) {
                     progress_estimate * 100);
             fflush(stdout);
         }
-        status = search((int)nof_conflicts, (int)nof_learnts, params);
+        int per_conflicts;
+        if (nConflicts < 0) {
+            per_conflicts = (nof_conflicts > (double)INT_MAX) ? INT_MAX : (int)nof_conflicts;
+        } else {
+            int64_t room = nConflicts - (int64_t)stats.conflicts;
+            if (room <= 0) return gv_l_Undef;
+            int64_t cap_i = std::min<int64_t>(room, (int64_t)INT_MAX);
+            double cap = std::min(nof_conflicts, (double)cap_i);
+            per_conflicts = (int)cap;
+            if (per_conflicts < 1) per_conflicts = 1;
+        }
+        status = search(per_conflicts, (int)nof_learnts, params);
         nof_conflicts *= 1.5;
         nof_learnts *= 1.1;
     }

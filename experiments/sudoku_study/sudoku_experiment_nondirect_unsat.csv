@@ -1,0 +1,5 @@
+name,size,variant,sat,wall_sec,nvars,nclauses,conflicts_progress_max,propagations,decisions,starts
+N9_full_sat,9,SAT_full_solution,True,0.038721,729,12069,0,729,1,1
+N9_nondirect_unsat,9,UNSAT_blocking_clause,False,0.021840,729,12070,0,0,0,0
+N16_full_sat,16,SAT_full_solution,True,0.053849,4096,124160,0,4096,1,1
+N16_nondirect_unsat,16,UNSAT_blocking_clause,False,0.046422,4096,124161,0,0,0,0

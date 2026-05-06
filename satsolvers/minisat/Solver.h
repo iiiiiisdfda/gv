@@ -223,7 +223,7 @@ class SolverV
         gvlbool solveLimited(const vec<Lit>& assumps, int64_t nConflicts);
         gvlbool solveLimited(int64_t nConflicts) {
             vec<Lit> tmp;
-            return solveLimited(nConflicts);
+            return solveLimited(tmp, nConflicts);
         }
         bool solve(const vec<Lit>& assumps);
         bool solve() {

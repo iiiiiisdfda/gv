@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 
 #include "cirMgr.h"
 #include "core/Solver.h"
@@ -54,7 +55,9 @@ public:
     virtual int nVars() { return 0; };
     virtual const GVBitVecX getDataValue(const gv::cir::CirGate* gate, const uint32_t& depth) const { return GVBitVecX(); };
     virtual const Var getVerifyData(const gv::cir::CirGate*, const uint32_t&) const {};
-    virtual void solve_dimacs_cnf(const string& filename) {};
+    virtual void solve_dimacs_cnf(const string& filename, bool print_model = false,
+                                  int64_t conflict_limit = -1, bool static_decision_order = false,
+                                  int witness_lit = 0) {};
 
 private:
     gv::cir::CirMgr* _cirMgr;

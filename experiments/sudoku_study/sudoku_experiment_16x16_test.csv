@@ -1,0 +1,3 @@
+name,size,clues,variant,trial,wall_sec,nvars,nclauses,conflicts_progress_max,propagations,decisions,starts,sat
+N16_sat_clues64_t0,16,64,SAT,0,0.055865,4096,123968,3,4506,184,1,True
+N16_unsat_clues64_t0,16,64,UNSAT,0,0.056555,4096,123968,0,17,0,0,False
