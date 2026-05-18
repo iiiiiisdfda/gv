@@ -1,0 +1,16 @@
+cirread -v ./designs/SoCV/vending/vending-mini-abs-output.v
+breset 2000 100003 200003
+bsetorder -dfs
+bconstruct -all
+set system vrf
+pinit init
+ptrans tri tr
+pimage -n 10 reach10
+pcheckp -o 0
+pcheckp -o 1
+pcheckp -o 2
+pimage -n 30 reach40
+pcheckp -o 0
+pcheckp -o 1
+pcheckp -o 2
+q -f
